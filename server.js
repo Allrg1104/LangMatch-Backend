@@ -34,13 +34,13 @@ mongoose.connect(MONGODB_URI)
   .catch(err => console.error('❌ Error de conexión a MongoDB:', err));
 
 // Verificación SMTP (usa el transporter importado)
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Error en SMTP:', error);
-  } else {
-    console.log('✅ SMTP configurado correctamente');
-  }
-});
+//transporter.verify((error, success) => {
+ //// if (error) {
+    //console.error('❌ Error en SMTP:', error);
+  //} else {
+    //console.log('✅ SMTP configurado correctamente');
+  //}
+//});
 
 // Rutas
 app.use('/api/chat', chatRoutes);

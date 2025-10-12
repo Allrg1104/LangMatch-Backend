@@ -13,9 +13,9 @@ const transporter = nodemailer.createTransport({
 });
 
 transporter.sendMail({
-  from: `"Sommer" <${process.env.MAIL_USER}>`,
+  from: `"Eloy" <${process.env.MAIL_USER}>`,
   to: 'oscar.98.rc@gmail.com',
-  subject: 'Prueba SMTP desde Sommer',
+  subject: 'Prueba SMTP desde Eloy',
   text: 'Hola! Este es un correo de prueba desde tu backend.'
 }).then(() => {
   console.log('✅ Correo enviado correctamente');

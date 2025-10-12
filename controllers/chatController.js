@@ -47,23 +47,50 @@ export const loginUser = async (req, res) => {
 /*Crear usuario y admin*/
 export const createUser = async (req, res) => {
   try {
-    const { nombre, correo, contrasena, rol } = req.body; 
+    const { nombre, correo, contrasena, rol } = req.body;
 
-    const nuevoUsuario = new Usuarios({ 
-      nombre, 
-      correo, 
-      contrasena, 
-      rol
+    // Validar que los campos estén completos
+    if (!nombre || !correo || !contrasena) {
+      return res.status(400).json({
+        success: false,
+        message: 'Todos los campos son obligatorios',
+      });
+    }
+
+    // Verificar si el correo ya existe
+    const usuarioExistente = await Usuarios.findOne({ correo });
+    if (usuarioExistente) {
+      return res.status(400).json({
+        success: false,
+        message: 'El correo ya está registrado. Intenta con otro.',
+      });
+    }
+
+    // Crear nuevo usuario
+    const nuevoUsuario = new Usuarios({
+      nombre,
+      correo,
+      contrasena,
+      rol,
     });
 
     await nuevoUsuario.save();
 
-    res.status(201).json({ success: true, message: 'Usuario creado exitosamente', usuario: nuevoUsuario });
+    res.status(201).json({
+      success: true,
+      message: 'Usuario creado exitosamente',
+      usuario: nuevoUsuario,
+    });
+
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ success: false, message: 'Error en el servidor' });
+    console.error('Error en createUser:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en el servidor',
+    });
   }
 };
+
 
 /*Obtener Datos del Usuario */                                                //MODIFICADO
 
@@ -213,8 +240,8 @@ export const generateAndSendSummary = async (userId, PORT) => {
       `🗨️ ${conv.prompt}\n💬 ${conv.response}`
     ).join('\n\n') || 'No hubo conversación registrada hoy.';
 
-    const { data: users } = await axios.get(`https://sommer-back-steel.vercel.app/api/chat/usuarios`);
-    //const { data: users } = await axios.get(`http://localhost:${PORT}/api/chat/usuarios`);
+    //const { data: users } = await axios.get(`https://sommer-back-steel.vercel.app/api/chat/usuarios`);
+    const { data: users } = await axios.get(`http://localhost:${PORT}/api/chat/usuarios`);
     const user = users.find(u =>
       u._id === userId || u._id?.toString() === userId || u.correo === userId
     );
@@ -232,9 +259,9 @@ export const generateAndSendSummary = async (userId, PORT) => {
 export const sendSummaryEmail = async (to, resumen) => {
   try {
     await transporter.sendMail({
-      from: `"Asistente Sommer" <${process.env.MAIL_USER}>`,
+      from: `"Eloy Profe" <${process.env.MAIL_USER}>`,
       to,
-      subject: 'Resumen de tu conversación con Sommer',
+      subject: 'Resumen de tu practica con Eloy',
       text: resumen
     });
     console.log(`📧 Resumen enviado a ${to}`);
