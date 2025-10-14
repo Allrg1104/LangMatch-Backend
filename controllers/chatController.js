@@ -1,231 +1,238 @@
-import OpenAI from 'openai';
-import Usuarios from '../models/Usuarios.js';
-import Conversation from '../models/Conversation.js';
-import transporter from '../config/mailConfig.js'; 
-import axios from 'axios';
-import dotenv from 'dotenv';
+import OpenAI from "openai";
+import Usuarios from "../models/Usuarios.js";
+import Conversation from "../models/Conversation.js";
+import PracticeSession from "../models/PracticeSession.js";
+import transporter from "../config/mailConfig.js";
+import axios from "axios";
+import dotenv from "dotenv";
 
 dotenv.config();
 
-// Mapa de actividad global (se mantendrá entre invocaciones en Vercel)
-const userActivityMap = new Map();
-
-export function updateUserActivity(userId) {
-  userActivityMap.set(userId, Date.now());
-}
-
-
-/*Login*/
-
+/* ------------------------ LOGIN DE USUARIO ------------------------ */
 export const loginUser = async (req, res) => {
   const { correo, contrasena } = req.body;
-
   try {
-      const validateUser = await Usuarios.findOne({ correo, contrasena });
+    const validateUser = await Usuarios.findOne({ correo, contrasena });
+    if (!validateUser) {
+      return res
+        .status(400)
+        .json({ success: false, message: "El usuario o contraseña no son correctos" });
+    }
 
-      if (validateUser) {
-          console.log("Login exitoso para:", correo);
-          return res.json({
-              success: true,
-              message: 'Inicio de Sesion Exitoso!',
-              user: {
-                  _id: validateUser._id,  //Se agrega User _id.  
-                  correo: validateUser.correo,
-                  nombre: validateUser.nombre,
-                  rol: validateUser.rol,
-              },
-          });
-      } else {
-          return res.status(400).json({ success: false, message: 'El usuario o contraseña no son correctos' });
-      }
+    console.log("✅ Login exitoso para:", correo);
+    res.json({
+      success: true,
+      message: "Inicio de sesión exitoso",
+      user: {
+        _id: validateUser._id,
+        correo: validateUser.correo,
+        nombre: validateUser.nombre,
+        rol: validateUser.rol,
+      },
+    });
   } catch (error) {
-      console.error('Error:', error);
-      return res.status(500).json({ success: false, message: 'Error en el servidor' });
+    console.error("❌ Error en loginUser:", error);
+    res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 };
 
-/*Crear usuario y admin*/
+/* ------------------------ CREAR USUARIO ------------------------ */
 export const createUser = async (req, res) => {
   try {
     const { nombre, correo, contrasena, rol } = req.body;
 
-    // Validar que los campos estén completos
     if (!nombre || !correo || !contrasena) {
-      return res.status(400).json({
-        success: false,
-        message: 'Todos los campos son obligatorios',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Todos los campos son obligatorios" });
     }
 
-    // Verificar si el correo ya existe
     const usuarioExistente = await Usuarios.findOne({ correo });
     if (usuarioExistente) {
-      return res.status(400).json({
-        success: false,
-        message: 'El correo ya está registrado. Intenta con otro.',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "El correo ya está registrado" });
     }
 
-    // Crear nuevo usuario
-    const nuevoUsuario = new Usuarios({
-      nombre,
-      correo,
-      contrasena,
-      rol,
-    });
-
+    const nuevoUsuario = new Usuarios({ nombre, correo, contrasena, rol });
     await nuevoUsuario.save();
 
     res.status(201).json({
       success: true,
-      message: 'Usuario creado exitosamente',
+      message: "Usuario creado exitosamente",
       usuario: nuevoUsuario,
     });
-
   } catch (error) {
-    console.error('Error en createUser:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error en el servidor',
-    });
+    console.error("❌ Error en createUser:", error);
+    res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 };
 
-
-/*Obtener Datos del Usuario */                                                //MODIFICADO
-
+/* ------------------------ OBTENER USUARIOS ------------------------ */
 export const getUsuario = async (req, res) => {
   try {
-    const usuarios = await Usuarios.find(); // ⬅ nombre en minúsculas
-    res.json(usuarios); // ✅ así sí devuelve un arreglo directamente
+    const usuarios = await Usuarios.find();
+    res.json(usuarios);
   } catch (error) {
-    res.status(500).json({ error: 'Error al obtener los usuarios' });
+    res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 };
 
-
-////////////////////////////////////////
-
-// Configurar OpenAI con manejo de errores mejorado
+/* ------------------------ CONFIGURACIÓN OPENAI ------------------------ */
 let openai;
 try {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('La variable de entorno OPENAI_API_KEY no está definida');
-  }
+  if (!apiKey) throw new Error("OPENAI_API_KEY no definida");
   openai = new OpenAI({ apiKey });
-  console.log('✅ OpenAI configurado correctamente');
+  console.log("✅ OpenAI configurado correctamente");
 } catch (error) {
-  console.error('Error al inicializar OpenAI:', error);
+  console.error("❌ Error al inicializar OpenAI:", error);
 }
 
-// Generar respuesta de ChatGPT con contexto del historial de conversaciones
+/* ------------------------ GENERAR RESPUESTA DEL CHATBOT ------------------------ */
 export const generateChatResponse = async (req, res) => {
   try {
     const { prompt, userId } = req.body;
-    updateUserActivity(userId);
+    if (!prompt) return res.status(400).json({ error: "El prompt es requerido" });
 
-    if (!prompt) return res.status(400).json({ error: 'El prompt es requerido' });
-    
     const conversations = await Conversation.find().sort({ createdAt: -1 }).limit(10);
-    const conversationContext = conversations.flatMap(conv => ([
+    const context = conversations.flatMap(conv => [
       { role: "user", content: conv.prompt },
-      { role: "assistant", content: conv.response }
-    ]));
+      { role: "assistant", content: conv.response },
+    ]);
 
-    // Llamada a la API de OpenAI con historial de conversaciones como contexto
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { 
-          role: "system", 
-          content: "Eres una asistente de rumbas llamada “Sommer”, de 32 años de edad. Eres servicial, alegre, espontánea, carismática con un acento caleño y lenguaje juvenil. Los usuarios te preguntaran que hacer un viernes o los fines de semana en la noche en Cali. Quieren planes para salir con amigos. Sugerir 3 planes divertidos de rumba con amigos cuando te pregunten. Responder brevemente y directo, entusiasmada, informalidad moderada, sin groserías, segura de si y con tranquilidad. No puedes hablar mal de otros lugares, no puedes buscar comida, cosas para comprar, temas de estudio, bíblicos, terroristas,  no des concejos médicos ni opiniones personales. "
+        {
+          role: "system",
+          content:
+            "Eres una asistente de rumbas llamada 'Sommer', de 32 años, alegre, espontánea y con acento caleño. " +
+            "Los usuarios te preguntarán qué hacer en Cali los fines de semana. Sugiere tres planes de rumba con amigos, " +
+            "responde breve, directa, entusiasta, con informalidad moderada y sin groserías ni consejos médicos.",
         },
-        ...conversationContext, // Agregar historial de conversaciones
-        { role: "user", content: prompt }
+        ...context,
+        { role: "user", content: prompt },
       ],
       max_tokens: 500,
       temperature: 0.7,
     });
-    
+
     const response = completion.choices[0].message.content;
-    
-    // Guardar la conversación en la base de datos
-    const newConversation = new Conversation({ prompt, response,userId });
+
+    const newConversation = new Conversation({ prompt, response, userId });
     await newConversation.save();
-    
+
     res.json({ response });
   } catch (error) {
-    console.error('Error al generar la respuesta:', error);
-    res.status(500).json({ 
-      error: 'Error al procesar la solicitud',
-      details: error.message 
-    });
+    console.error("❌ Error al generar respuesta:", error);
+    res.status(500).json({ error: "Error al procesar la solicitud" });
   }
 };
 
+/* ------------------------ HISTORIAL DE CONVERSACIONES ------------------------ */
 export const getConversationHistory = async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: "userId requerido" });
 
-    if (!userId) {
-      console.error("Error: userId no fue proporcionado en la solicitud");
-      return res.status(400).json({ error: "El userId es requerido" });
-    }
+    const conversations = await Conversation.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10);
 
-    // Obtener las últimas 10 conversaciones
-    const conversations = await Conversation.find({ userId }).sort({ createdAt: -1 }).limit(10);
-
-    // Transformar los datos para devolver solo el prompt y un resumen
-    const conversationSummary = conversations.map(conv => ({
+    const resumen = conversations.map(conv => ({
       prompt: conv.prompt,
-      resumen: conv.response.slice(0, 100) + "..." // Limita la respuesta a 100 caracteres y añade "..."
+      resumen: conv.response.slice(0, 100) + "...",
     }));
 
-    res.json(conversationSummary);
+    res.json(resumen);
   } catch (error) {
-    console.error("Error al obtener el historial:", error);
-    res.status(500).json({ error: "Error al obtener el historial de conversaciones" });
+    console.error("❌ Error al obtener historial:", error);
+    res.status(500).json({ error: "Error al obtener historial" });
   }
 };
 
+/* ------------------------ INICIAR SESIÓN DE PRÁCTICA ------------------------ */
+export const startPractice = async (req, res) => {
+  try {
+    const { userId, idioma, nivel } = req.body;
+    if (!userId || !idioma || !nivel) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Faltan datos: userId, idioma o nivel" });
+    }
+
+    const newSession = new PracticeSession({ userId, idioma, nivel });
+    await newSession.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Sesión de práctica iniciada correctamente",
+      sessionId: newSession._id,
+    });
+  } catch (error) {
+    console.error("❌ Error en startPractice:", error);
+    res.status(500).json({ success: false, message: "Error al iniciar práctica" });
+  }
+};
+
+/* ------------------------ OBTENER RESUMEN DE PRÁCTICA ------------------------ */
+export const getPracticeSummary = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await PracticeSession.findById(sessionId);
+
+    if (!session)
+      return res.status(404).json({ success: false, message: "Sesión no encontrada" });
+
+    const totalTime =
+      (session.endTime || new Date()).getTime() - session.startTime.getTime();
+    const minutes = Math.floor(totalTime / 60000);
+
+    const temas = session.messages
+      .filter(m => m.role === "user")
+      .map(m => m.content)
+      .slice(-3);
+
+    res.json({
+      success: true,
+      idioma: session.idioma,
+      nivel: session.nivel,
+      duracion: `${minutes} minutos`,
+      totalMensajes: session.messages.length,
+      temas,
+    });
+  } catch (error) {
+    console.error("❌ Error al obtener resumen:", error);
+    res.status(500).json({ success: false, message: "Error al generar resumen" });
+  }
+};
+
+/* ------------------------ CERRAR SESIÓN ------------------------ */
 export const logoutUser = async (req, res) => {
   try {
     const { userId } = req.body;
+    if (!userId)
+      return res.status(400).json({ success: false, message: "Falta userId" });
 
-    if (userActivityMap.has(userId)) {
-      userActivityMap.delete(userId);
-      console.log(`👋 Usuario ${userId} cerró sesión manualmente`);
-      
-      // Enviar resumen reutilizando la función existente
-      const summarySent = await generateAndSendSummary(userId, process.env.PORT);
-      
-      return res.json({ 
-        success: true, 
-        message: summarySent 
-          ? 'Sesión cerrada y resumen enviado por correo' 
-          : 'Sesión cerrada (pero no se pudo enviar el resumen)' 
-      });
-    } else {
-      return res.json({ 
-        success: true, 
-        message: 'Sesión cerrada (usuario no tenía actividad registrada)' 
-      });
-    }
-  } catch (error) {
-    console.error('❌ Error durante el cierre de sesión:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Error al cerrar sesión' 
+    console.log(`👋 Usuario ${userId} cerró sesión`);
+    const summarySent = await generateAndSendSummary(userId, process.env.PORT);
+
+    res.json({
+      success: true,
+      message: summarySent
+        ? "Sesión cerrada y resumen enviado por correo"
+        : "Sesión cerrada (sin envío de resumen)",
     });
+  } catch (error) {
+    console.error("❌ Error en logoutUser:", error);
+    res.status(500).json({ success: false, message: "Error al cerrar sesión" });
   }
 };
 
-// Revisión de inactividad cada 1 minuto
+/* ------------------------ RESUMEN Y ENVÍO DE CORREO ------------------------ */
 export const generateAndSendSummary = async (userId, PORT) => {
   try {
-    console.log(`⏳ Generando resumen para usuario ${userId}...`);
-    
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date();
@@ -233,25 +240,26 @@ export const generateAndSendSummary = async (userId, PORT) => {
 
     const conversations = await Conversation.find({
       userId,
-      createdAt: { $gte: startOfDay, $lte: endOfDay }
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
     });
 
-    const resumen = conversations.map(conv =>
-      `🗨️ ${conv.prompt}\n💬 ${conv.response}`
-    ).join('\n\n') || 'No hubo conversación registrada hoy.';
+    const resumen =
+      conversations
+        .map(conv => `🗨️ ${conv.prompt}\n💬 ${conv.response}`)
+        .join("\n\n") || "No hubo conversación registrada hoy.";
 
-    //const { data: users } = await axios.get(`https://sommer-back-steel.vercel.app/api/chat/usuarios`);
     const { data: users } = await axios.get(`http://localhost:${PORT}/api/chat/usuarios`);
-    const user = users.find(u =>
-      u._id === userId || u._id?.toString() === userId || u.correo === userId
+    const user = users.find(
+      u => u._id === userId || u._id?.toString() === userId || u.correo === userId
     );
 
     if (user && user.correo) {
-      await sendSummaryEmail(user.correo, resumen); // Ahora sin pasar transporter
+      await sendSummaryEmail(user.correo, resumen);
       return true;
     }
+    return false;
   } catch (error) {
-    console.error('❌ Error generando o enviando resumen:', error);
+    console.error("❌ Error generando o enviando resumen:", error);
     return false;
   }
 };
@@ -259,14 +267,14 @@ export const generateAndSendSummary = async (userId, PORT) => {
 export const sendSummaryEmail = async (to, resumen) => {
   try {
     await transporter.sendMail({
-      from: `"Eloy Profe" <${process.env.MAIL_USER}>`,
+      from: `"Sommer IA" <${process.env.MAIL_USER}>`,
       to,
-      subject: 'Resumen de tu practica con Eloy',
-      text: resumen
+      subject: "Resumen de tu práctica con Sommer",
+      text: resumen,
     });
     console.log(`📧 Resumen enviado a ${to}`);
   } catch (error) {
-    console.error('❌ Error enviando correo:', error);
-    throw error; // Propaga el error para manejarlo arriba
+    console.error("❌ Error enviando correo:", error);
+    throw error;
   }
 };
