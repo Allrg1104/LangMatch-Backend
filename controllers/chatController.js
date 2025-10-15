@@ -151,11 +151,25 @@ export const getConversationHistory = async (req, res) => {
     res.status(500).json({ error: "Error al obtener historial" });
   }
 };
+/* ------------------------ OBTENER PRCTICAS POR SESION ------------------------ */
+export const getPracticesByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const sessions = await PracticeSession.find({ userId }).sort({ createdAt: -1 });
+    res.json(sessions);
+  } catch (error) {
+    console.error("❌ Error al obtener prácticas:", error);
+    res.status(500).json({ success: false, message: "Error al obtener prácticas" });
+  }
+};
+
 
 /* ------------------------ INICIAR SESIÓN DE PRÁCTICA ------------------------ */
 export const startPractice = async (req, res) => {
   try {
     const { userId, idioma, nivel } = req.body;
+    console.log("📥 Datos recibidos en startPractice:", req.body);
+
     if (!userId || !idioma || !nivel) {
       return res
         .status(400)
