@@ -107,9 +107,9 @@ export const generateChatResponse = async (req, res) => {
         {
           role: "system",
           content:
-            "Eres una asistente de rumbas llamada 'Sommer', de 32 años, alegre, espontánea y con acento caleño. " +
-            "Los usuarios te preguntarán qué hacer en Cali los fines de semana. Sugiere tres planes de rumba con amigos, " +
-            "responde breve, directa, entusiasta, con informalidad moderada y sin groserías ni consejos médicos.",
+            "Eres un chatBot educativo Multilenguaje llamado 'Eloy'" +
+            "Los usuarios te enviaran un idioma a practicar y su respectivo nivel" +
+            "responde con practicas de pronunciacion y pequeños tips que ayuden a los usuarios a aprender el idioma",
         },
         ...context,
         { role: "user", content: prompt },
@@ -120,9 +120,19 @@ export const generateChatResponse = async (req, res) => {
 
     const response = completion.choices[0].message.content;
 
-    const newConversation = new Conversation({ prompt, response, userId });
-    await newConversation.save();
+    // Guarda también la conversación general
+  const newConversation = new Conversation({ prompt, response, userId });
+  await newConversation.save();
 
+// 🔹 Si hay una sesión activa, guarda el mensaje dentro de ella
+  if (req.body.sessionId) {
+    const session = await PracticeSession.findById(req.body.sessionId);
+  if (session) {
+    session.messages.push({ role: "user", content: prompt });
+    session.messages.push({ role: "assistant", content: response });
+    await session.save();
+  }
+}
     res.json({ response });
   } catch (error) {
     console.error("❌ Error al generar respuesta:", error);
@@ -189,6 +199,50 @@ export const startPractice = async (req, res) => {
     res.status(500).json({ success: false, message: "Error al iniciar práctica" });
   }
 };
+
+/* ------------------------ FINALIZAR SESIÓN DE PRÁCTICA ------------------------ */
+export const endPractice = async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: "Falta el sessionId" });
+    }
+
+    const session = await PracticeSession.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ success: false, message: "Sesión no encontrada" });
+    }
+
+    // Guardar la hora de finalización
+    session.endTime = new Date();
+    await session.save();
+
+    // Calcular duración
+    const durationMs = session.endTime - session.startTime;
+    const minutes = Math.round(durationMs / 60000);
+
+    // Generar resumen
+    const temas = session.messages
+      .filter(m => m.role === "user")
+      .slice(-3)
+      .map(m => m.content);
+
+    const resumen = {
+      idioma: session.idioma,
+      nivel: session.nivel,
+      duracion: `${minutes} minutos`,
+      totalMensajes: session.messages.length,
+      temas,
+    };
+
+    res.json({ success: true, resumen });
+  } catch (error) {
+    console.error("❌ Error en endPractice:", error);
+    res.status(500).json({ success: false, message: "Error al finalizar práctica" });
+  }
+};
+
 
 /* ------------------------ OBTENER RESUMEN DE PRÁCTICA ------------------------ */
 export const getPracticeSummary = async (req, res) => {
