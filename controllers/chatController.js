@@ -92,35 +92,38 @@ try {
 /* ------------------------ GENERAR RESPUESTA DEL CHATBOT ------------------------ */
 export const generateChatResponse = async (req, res) => {
   try {
-    const { prompt, userId, sessionId } = req.body;
-    if (!prompt || !userId)
-      return res.status(400).json({ error: "Faltan datos: prompt o userId" });
+    const { prompt, userId, sessionId, idioma, nivel } = req.body;
+if (!prompt || !userId)
+  return res.status(400).json({ error: "Faltan datos: prompt o userId" });
 
-    const conversations = await Conversation.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(10);
+const conversations = await Conversation.find({ userId })
+  .sort({ createdAt: -1 })
+  .limit(10);
 
-    const context = conversations.flatMap((conv) => [
-      { role: "user", content: conv.prompt },
-      { role: "assistant", content: conv.response },
-    ]);
+const context = conversations.flatMap((conv) => [
+  { role: "user", content: conv.prompt },
+  { role: "assistant", content: conv.response },
+]);
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Eres un chatBot educativo multilenguaje llamado 'Eloy'. " +
-            "Los usuarios te enviarán un idioma a practicar y su respectivo nivel. " +
-            "Responde con ejercicios prácticos, frases cortas y tips de pronunciación. Sé amigable y pedagógico.",
-        },
-        ...context,
-        { role: "user", content: prompt },
-      ],
-      max_tokens: 500,
-      temperature: 0.7,
-    });
+const completion = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+        Eres un asistente educativo multilenguaje llamado 'Thot'.
+        El estudiante está practicando **${idioma || "idioma no especificado"}** 
+        a nivel **${nivel || "nivel desconocido"}**.
+        Responde siempre en ese idioma, usando ejercicios prácticos, frases cortas 
+        y tips de pronunciación adecuados a ese nivel. Sé amigable y pedagógico.
+      `,
+    },
+    ...context,
+    { role: "user", content: prompt },
+  ],
+  max_tokens: 500,
+  temperature: 0.7,
+});
 
     const response = completion.choices[0].message.content;
 
