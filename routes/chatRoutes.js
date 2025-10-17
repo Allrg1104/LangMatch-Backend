@@ -25,7 +25,7 @@ router.get("/usuarios", getUsuario);
 router.post("/logout", logoutUser);
 
 // 🔹 Chat general
-router.post("/", generateChatResponse);
+router.post("/chatbot", generateChatResponse);
 router.get("/history/:userId", getConversationHistory);
 
 // 🔹 Prácticas (idioma y nivel)
