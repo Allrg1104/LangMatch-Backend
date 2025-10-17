@@ -92,11 +92,15 @@ try {
 /* ------------------------ GENERAR RESPUESTA DEL CHATBOT ------------------------ */
 export const generateChatResponse = async (req, res) => {
   try {
-    const { prompt, userId } = req.body;
-    if (!prompt) return res.status(400).json({ error: "El prompt es requerido" });
+    const { prompt, userId, sessionId } = req.body;
+    if (!prompt || !userId)
+      return res.status(400).json({ error: "Faltan datos: prompt o userId" });
 
-    const conversations = await Conversation.find().sort({ createdAt: -1 }).limit(10);
-    const context = conversations.flatMap(conv => [
+    const conversations = await Conversation.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    const context = conversations.flatMap((conv) => [
       { role: "user", content: conv.prompt },
       { role: "assistant", content: conv.response },
     ]);
@@ -107,9 +111,9 @@ export const generateChatResponse = async (req, res) => {
         {
           role: "system",
           content:
-            "Eres un chatBot educativo Multilenguaje llamado 'Eloy'" +
-            "Los usuarios te enviaran un idioma a practicar y su respectivo nivel" +
-            "responde con practicas de pronunciacion y pequeños tips que ayuden a los usuarios a aprender el idioma",
+            "Eres un chatBot educativo multilenguaje llamado 'Eloy'. " +
+            "Los usuarios te enviarán un idioma a practicar y su respectivo nivel. " +
+            "Responde con ejercicios prácticos, frases cortas y tips de pronunciación. Sé amigable y pedagógico.",
         },
         ...context,
         { role: "user", content: prompt },
@@ -120,59 +124,26 @@ export const generateChatResponse = async (req, res) => {
 
     const response = completion.choices[0].message.content;
 
-    // Guarda también la conversación general
-  const newConversation = new Conversation({ prompt, response, userId });
-  await newConversation.save();
+    // ✅ Guarda la conversación con userId incluido
+    const newConversation = new Conversation({ prompt, response, userId });
+    await newConversation.save();
 
-// 🔹 Si hay una sesión activa, guarda el mensaje dentro de ella
-  if (req.body.sessionId) {
-    const session = await PracticeSession.findById(req.body.sessionId);
-  if (session) {
-    session.messages.push({ role: "user", content: prompt });
-    session.messages.push({ role: "assistant", content: response });
-    await session.save();
-  }
-}
-    res.json({ response });
+    // ✅ Si hay una sesión activa, guarda también el intercambio en PracticeSession
+    if (sessionId) {
+      const session = await PracticeSession.findById(sessionId);
+      if (session) {
+        session.messages.push({ role: "user", content: prompt });
+        session.messages.push({ role: "assistant", content: response });
+        await session.save();
+      }
+    }
+
+    res.json({ success: true, response });
   } catch (error) {
     console.error("❌ Error al generar respuesta:", error);
     res.status(500).json({ error: "Error al procesar la solicitud" });
   }
 };
-
-/* ------------------------ HISTORIAL DE CONVERSACIONES ------------------------ */
-export const getConversationHistory = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    if (!userId) return res.status(400).json({ error: "userId requerido" });
-
-    const conversations = await Conversation.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(10);
-
-    const resumen = conversations.map(conv => ({
-      prompt: conv.prompt,
-      resumen: conv.response.slice(0, 100) + "...",
-    }));
-
-    res.json(resumen);
-  } catch (error) {
-    console.error("❌ Error al obtener historial:", error);
-    res.status(500).json({ error: "Error al obtener historial" });
-  }
-};
-/* ------------------------ OBTENER PRCTICAS POR SESION ------------------------ */
-export const getPracticesByUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const sessions = await PracticeSession.find({ userId }).sort({ createdAt: -1 });
-    res.json(sessions);
-  } catch (error) {
-    console.error("❌ Error al obtener prácticas:", error);
-    res.status(500).json({ success: false, message: "Error al obtener prácticas" });
-  }
-};
-
 
 /* ------------------------ INICIAR SESIÓN DE PRÁCTICA ------------------------ */
 export const startPractice = async (req, res) => {
@@ -186,13 +157,41 @@ export const startPractice = async (req, res) => {
         .json({ success: false, message: "Faltan datos: userId, idioma o nivel" });
     }
 
-    const newSession = new PracticeSession({ userId, idioma, nivel });
+    // 🟢 Crear la nueva sesión de práctica
+    const newSession = new PracticeSession({
+      userId,
+      idioma,
+      nivel,
+      startTime: new Date(),
+      messages: [],
+    });
+    await newSession.save();
+
+    // 🟣 Generar respuesta inicial automática del bot
+    const systemPrompt = `El usuario quiere practicar ${idioma} a nivel ${nivel}. 
+    Da una breve bienvenida y propón una práctica inicial simple en ese idioma.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Eres 'Eloy', un tutor de idiomas amable y didáctico." },
+        { role: "user", content: systemPrompt },
+      ],
+      max_tokens: 400,
+      temperature: 0.8,
+    });
+
+    const botResponse = completion.choices[0].message.content;
+
+    // 🟢 Guardar mensaje inicial en la sesión
+    newSession.messages.push({ role: "assistant", content: botResponse });
     await newSession.save();
 
     res.status(201).json({
       success: true,
       message: "Sesión de práctica iniciada correctamente",
       sessionId: newSession._id,
+      initialResponse: botResponse,
     });
   } catch (error) {
     console.error("❌ Error en startPractice:", error);
@@ -200,11 +199,10 @@ export const startPractice = async (req, res) => {
   }
 };
 
-/* ------------------------ FINALIZAR SESIÓN DE PRÁCTICA ------------------------ */
+/* ------------------------ FINALIZAR SESIÓN ------------------------ */
 export const endPractice = async (req, res) => {
   try {
     const { sessionId } = req.body;
-
     if (!sessionId) {
       return res.status(400).json({ success: false, message: "Falta el sessionId" });
     }
@@ -214,15 +212,12 @@ export const endPractice = async (req, res) => {
       return res.status(404).json({ success: false, message: "Sesión no encontrada" });
     }
 
-    // Guardar la hora de finalización
     session.endTime = new Date();
     await session.save();
 
-    // Calcular duración
     const durationMs = session.endTime - session.startTime;
     const minutes = Math.round(durationMs / 60000);
 
-    // Generar resumen
     const temas = session.messages
       .filter(m => m.role === "user")
       .slice(-3)
@@ -243,8 +238,7 @@ export const endPractice = async (req, res) => {
   }
 };
 
-
-/* ------------------------ OBTENER RESUMEN DE PRÁCTICA ------------------------ */
+/* ------------------------ RESUMEN DE PRÁCTICA ------------------------ */
 export const getPracticeSummary = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -344,5 +338,29 @@ export const sendSummaryEmail = async (to, resumen) => {
   } catch (error) {
     console.error("❌ Error enviando correo:", error);
     throw error;
+  }
+};
+
+
+export const getConversationHistory = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ error: "El ID del usuario es requerido" });
+    }
+
+    // 🔹 Busca las últimas 20 conversaciones de ese usuario
+    const conversations = await Conversation.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    res.status(200).json({
+      success: true,
+      conversations,
+    });
+  } catch (error) {
+    console.error("❌ Error al obtener historial:", error);
+    res.status(500).json({ error: "Error al obtener historial de conversación" });
   }
 };

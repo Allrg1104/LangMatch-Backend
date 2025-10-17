@@ -1,24 +1,25 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const conversationSchema = new mongoose.Schema({
   prompt: {
     type: String,
-    required: true
+    required: true,
   },
   response: {
     type: String,
-    required: true
+    required: true,
   },
   userId: {
     type: String,
-    required: true
+    required: false, // ✅ Ahora no se cae si el frontend no envía userId
+    default: "anonimo",
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
-const Conversation = mongoose.model('Conversation', conversationSchema);
+const Conversation = mongoose.model("Conversation", conversationSchema);
 
 export default Conversation;

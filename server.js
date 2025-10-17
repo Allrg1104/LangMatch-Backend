@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import { router as chatRoutes } from './routes/chatRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import transporter from './config/mailConfig.js'; // Importación única del transporter configurado

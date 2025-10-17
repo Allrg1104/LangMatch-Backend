@@ -1,4 +1,9 @@
 import PracticeSession from "../models/PracticeSession.js";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 /**
  * 🔹 Iniciar una nueva práctica
@@ -25,10 +30,41 @@ export const startPractice = async (req, res) => {
 
     await session.save();
 
+    // 🔹 Generar mensaje inicial con OpenAI
+    const prompt = `Eres un profesor amigable. Da una bienvenida breve al estudiante en ${idioma}, 
+    indicando que esta es una práctica de nivel ${nivel}. 
+    Anima al estudiante a comenzar con una frase corta.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Eres un asistente educativo multilenguaje llamado 'Thot'. Sé amable, claro y pedagógico.",
+        },
+        { role: "user", content: prompt },
+      ],
+      max_tokens: 150,
+      temperature: 0.7,
+    });
+
+    const initialResponse = completion.choices[0].message.content;
+
+    // Guardar el mensaje inicial en la sesión
+    session.messages.push({
+      role: "assistant",
+      content: initialResponse,
+      timestamp: new Date(),
+    });
+    await session.save();
+
+    // 🔹 Enviar respuesta al frontend
     res.status(201).json({
       success: true,
       message: "Sesión de práctica iniciada",
       sessionId: session._id,
+      initialResponse,
     });
   } catch (error) {
     console.error("❌ Error al iniciar práctica:", error);
@@ -154,3 +190,51 @@ export const getPracticeSummary = async (req, res) => {
     });
   }
 };
+
+/**
+ * 🔹 Eliminar práctica
+ */
+export const deletePractice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await PracticeSession.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Práctica no encontrada" });
+    }
+
+    res.json({ success: true, message: "Práctica eliminada correctamente" });
+  } catch (error) {
+    console.error("❌ Error al eliminar práctica:", error);
+    res.status(500).json({ success: false, message: "Error al eliminar práctica" });
+  }
+};
+
+/**
+ * 🔹 Obtener todas las prácticas de un usuario
+ */
+export const getPracticesByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Falta el ID del usuario",
+      });
+    }
+
+    const sessions = await PracticeSession.find({ userId }).sort({
+      startTime: -1,
+    });
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    console.error("❌ Error al obtener prácticas por usuario:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error del servidor al obtener las prácticas",
+    });
+  }
+};
+
