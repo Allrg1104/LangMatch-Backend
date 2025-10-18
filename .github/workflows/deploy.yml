@@ -25,5 +25,5 @@ key: ${{ secrets.EC2_SSH_KEY }}
 script: |
 cd /home/ubuntu/backend
 npm install --production
-pm2 restart backend-mozart || pm2 start index.js --name backend-mozart
+pm2 restart LangMatch-Backend || pm2 start server.js --name LangMatch-Backend
 pm2 save
