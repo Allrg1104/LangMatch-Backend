@@ -20,6 +20,16 @@ import {
   deletePractice,
 } from "../controllers/practiceController.js";
 
+// 🧩 Controladores de Estadisticas (Dashboard)
+import {
+  getDashboardStats,
+  getUsuariosActivos,
+  getTopIdiomas,
+  getPracticasPorDia,
+  getPromedioDuracionPractica,
+} from "../controllers/dashboardController.js";
+
+
 const router = express.Router();
 
 /* ---------------------- RUTAS DE USUARIOS Y LOGIN ---------------------- */
@@ -39,5 +49,14 @@ router.post("/practice/end", endPractice);            // Finalizar práctica y g
 router.get("/practice/summary/:sessionId", getPracticeSummary); // Obtener resumen
 router.get("/practice/:userId", getPracticesByUser);  // Historial por usuario
 router.delete("/practice/:id", deletePractice);       // Eliminar práctica
+
+/* ---------------------- Dashboard (Estadísticas y métricas) ---------------------- */
+router.get("/dashboard", getDashboardStats); // Estadísticas generales
+router.get("/dashboard/usuarios-activos", getUsuariosActivos); // Usuarios activos recientes
+router.get("/dashboard/top-idiomas", getTopIdiomas); // Idiomas más practicados
+router.get("/dashboard/practicas-por-dia", getPracticasPorDia); // Gráfico de prácticas por día
+router.get("/dashboard/promedio-duracion", getPromedioDuracionPractica); // Promedio duración práctica
+
+
 
 export default router;
