@@ -80,6 +80,9 @@ export const startPractice = async (req, res) => {
  */
 export const saveMessage = async (req, res) => {
   try {
+    console.log("📌 Historial que se envía a OpenAI:");
+    console.log(JSON.stringify(chatHistory, null, 2));
+
     const { sessionId, role, content } = req.body;
 
     if (!sessionId || !role || !content) {
@@ -97,17 +100,43 @@ export const saveMessage = async (req, res) => {
       });
     }
 
-    session.messages.push({
-      role,
-      content,
-      timestamp: new Date(),
-    });
-
+    // Guardar mensaje del usuario en la sesión
+    session.messages.push({ role, content, timestamp: new Date() });
     await session.save();
 
-    res.status(200).json({ success: true, message: "Mensaje guardado" });
+    // 🔥 Reconstruir historial para la IA
+    const chatHistory = [
+      { role: "system", content: `Eres 'Eloy', un tutor de idiomas. El usuario está practicando ${session.idioma} a nivel ${session.nivel}. Sé amable, claro y corrige errores si es necesario.` },
+      ...session.messages.map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+    ];
+
+    // Llamada a OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: chatHistory,
+    });
+
+    const botResponse = completion.choices[0].message.content;
+
+    // Guardar respuesta de la IA en la sesión
+    session.messages.push({
+      role: "assistant",
+      content: botResponse,
+      timestamp: new Date(),
+    });
+    await session.save();
+
+    res.status(200).json({
+      success: true,
+      userMessage: content,
+      botResponse,
+      messages: session.messages,
+    });
   } catch (error) {
-    console.error("❌ Error al guardar mensaje:", error);
+    console.error("❌ Error en saveMessage:", error);
     res.status(500).json({
       success: false,
       message: "Error del servidor al guardar mensaje",

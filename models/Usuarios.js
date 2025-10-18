@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-/*Esquema usuario y admin */
+/*Esquema usuario y admin PRUEBA DE PUSH*/
 
 const usuariosSchema = new mongoose.Schema({
     nombre: String,
