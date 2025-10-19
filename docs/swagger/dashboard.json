@@ -1,0 +1,69 @@
+{
+    "paths": {
+        "/api/chat/dashboard": {
+            "get": {
+                "summary": "Obtener estadísticas generales",
+                "responses": {
+                    "200": {
+                        "description": "Estadísticas obtenidas correctamente"
+                    },
+                    "500": {
+                        "description": "Error al obtener estadísticas"
+                    }
+                }
+            }
+        },
+        "/api/chat/dashboard/usuarios-activos": {
+            "get": {
+                "summary": "Usuarios activos en los últimos 7 días",
+                "responses": {
+                    "200": {
+                        "description": "Usuarios activos obtenidos correctamente"
+                    },
+                    "500": {
+                        "description": "Error al obtener usuarios activos"
+                    }
+                }
+            }
+        },
+        "/api/chat/dashboard/top-idiomas": {
+            "get": {
+                "summary": "Idiomas más practicados",
+                "responses": {
+                    "200": {
+                        "description": "Idiomas obtenidos correctamente"
+                    },
+                    "500": {
+                        "description": "Error al obtener idiomas"
+                    }
+                }
+            }
+        },
+        "/api/chat/dashboard/practicas-por-dia": {
+            "get": {
+                "summary": "Prácticas por día (últimos 7 días)",
+                "responses": {
+                    "200": {
+                        "description": "Datos de prácticas por día obtenidos correctamente"
+                    },
+                    "500": {
+                        "description": "Error al obtener prácticas por día"
+                    }
+                }
+            }
+        },
+        "/api/chat/dashboard/promedio-duracion": {
+            "get": {
+                "summary": "Promedio de duración de prácticas",
+                "responses": {
+                    "200": {
+                        "description": "Promedio de duración calculado correctamente"
+                    },
+                    "500": {
+                        "description": "Error al obtener promedio de duración"
+                    }
+                }
+            }
+        }
+    }
+}

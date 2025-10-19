@@ -1,0 +1,62 @@
+{
+    "paths": {
+        "/api/chat/chatbot": {
+            "post": {
+                "summary": "Enviar mensaje al chatbot",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "userId": {
+                                        "type": "string"
+                                    },
+                                    "message": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "userId",
+                                    "message"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Respuesta generada por el chatbot"
+                    },
+                    "500": {
+                        "description": "Error al generar respuesta"
+                    }
+                }
+            }
+        },
+        "/api/chat/history/{userId}": {
+            "get": {
+                "summary": "Obtener historial de conversación",
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Historial obtenido correctamente"
+                    },
+                    "500": {
+                        "description": "Error al obtener historial"
+                    }
+                }
+            }
+        }
+    }
+}

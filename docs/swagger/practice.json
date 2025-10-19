@@ -1,0 +1,206 @@
+{
+    "paths": {
+        "/api/chat/practice/start": {
+            "post": {
+                "summary": "Iniciar una nueva práctica",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "userId": {
+                                        "type": "string"
+                                    },
+                                    "idioma": {
+                                        "type": "string"
+                                    },
+                                    "nivel": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "userId",
+                                    "idioma",
+                                    "nivel"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Práctica iniciada correctamente"
+                    },
+                    "400": {
+                        "description": "Faltan datos requeridos"
+                    },
+                    "500": {
+                        "description": "Error del servidor al iniciar práctica"
+                    }
+                }
+            }
+        },
+        "/api/chat/practice/message": {
+            "post": {
+                "summary": "Guardar mensaje en una práctica",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "sessionId": {
+                                        "type": "string"
+                                    },
+                                    "role": {
+                                        "type": "string"
+                                    },
+                                    "content": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "sessionId",
+                                    "role",
+                                    "content"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Mensaje guardado correctamente"
+                    },
+                    "400": {
+                        "description": "Faltan datos requeridos"
+                    },
+                    "404": {
+                        "description": "Sesión no encontrada"
+                    },
+                    "500": {
+                        "description": "Error del servidor al guardar mensaje"
+                    }
+                }
+            }
+        },
+        "/api/chat/practice/end": {
+            "post": {
+                "summary": "Finalizar una práctica",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "sessionId": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "sessionId"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Práctica finalizada correctamente"
+                    },
+                    "400": {
+                        "description": "Falta el ID de la sesión"
+                    },
+                    "404": {
+                        "description": "Sesión no encontrada"
+                    },
+                    "500": {
+                        "description": "Error al finalizar práctica"
+                    }
+                }
+            }
+        },
+        "/api/chat/practice/summary/{sessionId}": {
+            "get": {
+                "summary": "Obtener resumen de una práctica",
+                "parameters": [
+                    {
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Resumen generado correctamente"
+                    },
+                    "404": {
+                        "description": "Sesión no encontrada"
+                    },
+                    "500": {
+                        "description": "Error al obtener resumen"
+                    }
+                }
+            }
+        },
+        "/api/chat/practice/{userId}": {
+            "get": {
+                "summary": "Obtener prácticas por usuario",
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Listado de prácticas"
+                    },
+                    "400": {
+                        "description": "Falta el ID del usuario"
+                    },
+                    "500": {
+                        "description": "Error del servidor al obtener prácticas"
+                    }
+                }
+            }
+        },
+        "/api/chat/practice/{id}": {
+            "delete": {
+                "summary": "Eliminar una práctica",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Práctica eliminada correctamente"
+                    },
+                    "404": {
+                        "description": "Práctica no encontrada"
+                    },
+                    "500": {
+                        "description": "Error al eliminar práctica"
+                    }
+                }
+            }
+        }
+    }
+}
